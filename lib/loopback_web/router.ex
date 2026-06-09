@@ -27,6 +27,7 @@ defmodule LoopbackWeb.Router do
     pipe_through :api
 
     post "/replays/:request_id", ReplayController, :replay
+    post "/verify-webhook", WebhookVerificationController, :verify
 
     get "/tunnels/:tunnel_id/transformation", TransformationsController, :show
     post "/tunnels/:tunnel_id/transformation", TransformationsController, :create
