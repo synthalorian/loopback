@@ -6,6 +6,7 @@ defmodule LoopbackWeb.TunnelController do
   use LoopbackWeb, :controller
 
   alias Loopback.Captures
+  alias Loopback.Chaos
   alias Loopback.Transformations
   alias Loopback.Tunnels
 
@@ -49,55 +50,71 @@ defmodule LoopbackWeb.TunnelController do
         {:error, _reason} -> ctx
       end
 
-    target_uri = build_target_uri(target_url, ctx.path, ctx.query_string)
-    url_charlist = target_uri |> URI.to_string() |> String.to_charlist()
-
-    method = parse_method(ctx.method)
     body = ctx.body || ""
-    req_headers = filter_headers(ctx.headers)
 
-    result =
-      if body == "" and method in [:get, :head, :delete, :options] do
-        :httpc.request(method, {url_charlist, req_headers}, [], [body_format: :binary])
-      else
-        content_type = content_type_from_headers(conn.req_headers)
-
-        :httpc.request(
-          method,
-          {url_charlist, req_headers, content_type, body},
-          [],
-          [body_format: :binary]
-        )
-      end
-
-    case result do
-      {:ok, {{_http_version, status, _reason}, resp_headers, resp_body}} ->
-        resp_headers = normalize_headers(resp_headers)
-
+    case Chaos.apply_chaos(body) do
+      {:error, :chaos_drop} ->
         _request =
           Captures.capture_request(conn, tunnel_id,
-            response_status: status,
-            response_headers: resp_headers,
-            response_body: resp_body,
+            response_status: 503,
             path: "/" <> Path.join(path_segments)
           )
 
         conn
-        |> put_status(status)
-        |> put_resp_headers(resp_headers)
-        |> send_resp(status, resp_body)
+        |> put_status(:service_unavailable)
+        |> json(%{error: "chaos mode: request dropped"})
         |> halt()
 
-      {:error, reason} ->
-        _request =
-          Captures.capture_request(conn, tunnel_id,
-            response_status: 502,
-            path: "/" <> Path.join(path_segments)
-          )
+      {:ok, chaos_body} ->
+        target_uri = build_target_uri(target_url, ctx.path, ctx.query_string)
+        url_charlist = target_uri |> URI.to_string() |> String.to_charlist()
 
-        conn
-        |> put_status(:bad_gateway)
-        |> json(%{error: "failed to forward request", reason: inspect(reason)})
+        method = parse_method(ctx.method)
+        req_headers = filter_headers(ctx.headers)
+
+        result =
+          if chaos_body == "" and method in [:get, :head, :delete, :options] do
+            :httpc.request(method, {url_charlist, req_headers}, [], [body_format: :binary])
+          else
+            content_type = content_type_from_headers(conn.req_headers)
+
+            :httpc.request(
+              method,
+              {url_charlist, req_headers, content_type, chaos_body},
+              [],
+              [body_format: :binary]
+            )
+          end
+
+        case result do
+          {:ok, {{_http_version, status, _reason}, resp_headers, resp_body}} ->
+            resp_headers = normalize_headers(resp_headers)
+
+            _request =
+              Captures.capture_request(conn, tunnel_id,
+                response_status: status,
+                response_headers: resp_headers,
+                response_body: resp_body,
+                path: "/" <> Path.join(path_segments)
+              )
+
+            conn
+            |> put_status(status)
+            |> put_resp_headers(resp_headers)
+            |> send_resp(status, resp_body)
+            |> halt()
+
+          {:error, reason} ->
+            _request =
+              Captures.capture_request(conn, tunnel_id,
+                response_status: 502,
+                path: "/" <> Path.join(path_segments)
+              )
+
+            conn
+            |> put_status(:bad_gateway)
+            |> json(%{error: "failed to forward request", reason: inspect(reason)})
+        end
     end
   end
 
