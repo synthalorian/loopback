@@ -7,12 +7,14 @@ defmodule LoopbackWeb.TunnelDetailLive do
 
   alias Loopback.Captures
   alias Loopback.Replay
+  alias Loopback.Transformations
   alias Loopback.Tunnels
 
   @impl true
   def mount(%{"id" => tunnel_id}, _session, socket) do
     tunnel = Tunnels.get_tunnel(tunnel_id)
     requests = Captures.list_requests(tunnel_id)
+    script = if tunnel, do: Transformations.get_script(tunnel_id), else: nil
 
     if connected?(socket) and tunnel != nil do
       Phoenix.PubSub.subscribe(Loopback.PubSub, "tunnel:#{tunnel_id}")
@@ -27,7 +29,11 @@ defmodule LoopbackWeb.TunnelDetailLive do
        page_title: if(tunnel, do: "Tunnel #{tunnel.id}", else: "Tunnel Not Found"),
        replay_mode: false,
        replay_result: nil,
-       replay_error: nil
+       replay_error: nil,
+       transform_script: script || "",
+       transform_mode: false,
+       transform_error: nil,
+       transform_success: nil
      )}
   end
 
@@ -331,6 +337,95 @@ defmodule LoopbackWeb.TunnelDetailLive do
                   </button>
                 </div>
               <% end %>
+
+              <!-- Transformation Script Section -->
+              <div class="border-t border-zinc-200 px-4 py-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    Programmable Transformation
+                  </h3>
+                  <button
+                    phx-click="toggle_transform_mode"
+                    class="inline-flex items-center rounded-md bg-amber-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-amber-500 transition-colors"
+                  >
+                    <%= if @transform_mode, do: "Cancel", else: if(@transform_script != "", do: "Edit Script", else: "Add Script") %>
+                  </button>
+                </div>
+
+                <%= if not @transform_mode do %>
+                  <%= if @transform_script != "" do %>
+                    <div class="rounded-lg bg-zinc-900 p-3">
+                      <pre class="overflow-x-auto text-xs text-zinc-100 font-mono"><%= @transform_script %></pre>
+                    </div>
+                    <div class="mt-2 flex items-center gap-2">
+                      <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                        Active
+                      </span>
+                      <button
+                        phx-click="delete_transform"
+                        class="text-xs text-rose-600 hover:text-rose-800 font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  <% else %>
+                    <p class="text-sm text-zinc-500">No transformation script configured.</p>
+                    <p class="mt-1 text-xs text-zinc-400">
+                      Scripts modify requests before forwarding. The script receives a <code class="font-mono">ctx</code> map and must return a map with <code class="font-mono">method</code>, <code class="font-mono">path</code>, <code class="font-mono">query_string</code>, <code class="font-mono">headers</code>, and <code class="font-mono">body</code>.
+                    </p>
+                  <% end %>
+                <% end %>
+
+                <%= if @transform_mode do %>
+                  <form phx-submit="save_transform" class="space-y-3">
+                    <div>
+                      <label class="block text-xs font-medium text-zinc-700">Script</label>
+                      <textarea
+                        name="script"
+                        rows="8"
+                        class="mt-1 block w-full rounded-md border-zinc-300 shadow-sm text-sm font-mono"
+                      ><%= @transform_script %></textarea>
+                    </div>
+                    <div class="rounded-md bg-zinc-50 p-2">
+                      <p class="text-xs text-zinc-600">
+                        <span class="font-semibold">Available in script:</span>
+                        <code class="font-mono text-zinc-800">ctx</code> (map with method, path, query_string, headers, body),
+                        <code class="font-mono text-zinc-800">Jason</code>,
+                        <code class="font-mono text-zinc-800">String</code>,
+                        <code class="font-mono text-zinc-800">Map</code>,
+                        <code class="font-mono text-zinc-800">Enum</code>, etc.
+                      </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="submit"
+                        class="inline-flex items-center rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-amber-500 transition-colors"
+                      >
+                        Save Script
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="test_transform"
+                        class="inline-flex items-center rounded-md bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-200 transition-colors"
+                      >
+                        Test
+                      </button>
+                    </div>
+                  </form>
+                <% end %>
+
+                <%= if @transform_error do %>
+                  <div class="mt-3 rounded-md bg-rose-50 p-3">
+                    <p class="text-sm text-rose-700"><%= @transform_error %></p>
+                  </div>
+                <% end %>
+
+                <%= if @transform_success do %>
+                  <div class="mt-3 rounded-md bg-emerald-50 p-3">
+                    <p class="text-sm text-emerald-700"><%= @transform_success %></p>
+                  </div>
+                <% end %>
+              </div>
             </div>
           </div>
         </div>
@@ -384,6 +479,89 @@ defmodule LoopbackWeb.TunnelDetailLive do
   @impl true
   def handle_event("clear_replay_result", _params, socket) do
     {:noreply, assign(socket, replay_result: nil, replay_error: nil)}
+  end
+
+  @impl true
+  def handle_event("toggle_transform_mode", _params, socket) do
+    {:noreply,
+     assign(socket,
+       transform_mode: !socket.assigns.transform_mode,
+       transform_error: nil,
+       transform_success: nil
+     )}
+  end
+
+  @impl true
+  def handle_event("save_transform", %{"script" => script_text}, socket) do
+    tunnel_id = socket.assigns.tunnel_id
+
+    # Validate by testing with a sample context
+    sample_ctx = %{
+      method: "GET",
+      path: "/test",
+      query_string: nil,
+      headers: [{"accept", "application/json"}],
+      body: nil
+    }
+
+    case Transformations.transform(tunnel_id, sample_ctx) do
+      {:ok, _} when socket.assigns.transform_script == "" and script_text == "" ->
+        {:noreply, assign(socket, transform_error: "Script cannot be empty", transform_success: nil)}
+
+      _ ->
+        :ok = Transformations.set_script(tunnel_id, script_text)
+
+        {:noreply,
+         assign(socket,
+           transform_script: script_text,
+           transform_mode: false,
+           transform_error: nil,
+           transform_success: "Transformation script saved."
+         )}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_transform", _params, socket) do
+    tunnel_id = socket.assigns.tunnel_id
+    :ok = Transformations.delete_script(tunnel_id)
+
+    {:noreply,
+     assign(socket,
+       transform_script: "",
+       transform_mode: false,
+       transform_error: nil,
+       transform_success: "Transformation script deleted."
+     )}
+  end
+
+  @impl true
+  def handle_event("test_transform", %{"script" => script_text}, socket) do
+    sample_ctx = %{
+      method: "POST",
+      path: "/webhooks/github",
+      query_string: "foo=bar",
+      headers: [{"content-type", "application/json"}, {"x-signature", "abc123"}],
+      body: ~s({"event": "push"})
+    }
+
+    # Temporarily evaluate without saving
+    case Loopback.Transformations.Script.execute(script_text, sample_ctx) do
+      {:ok, result} ->
+        formatted =
+          result
+          |> Map.take([:method, :path, :query_string, :headers, :body])
+          |> Jason.encode!(pretty: true)
+
+        {:noreply,
+         assign(socket,
+           transform_error: nil,
+           transform_success: "Test passed. Result:\n#{formatted}"
+         )}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, transform_error: "Test failed: #{reason}", transform_success: nil)}
+    end
   end
 
   defp do_replay(socket, modifications) do

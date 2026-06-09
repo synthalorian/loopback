@@ -6,6 +6,7 @@ defmodule LoopbackWeb.TunnelController do
   use LoopbackWeb, :controller
 
   alias Loopback.Captures
+  alias Loopback.Transformations
   alias Loopback.Tunnels
 
   @hop_by_hop_headers [
@@ -32,12 +33,28 @@ defmodule LoopbackWeb.TunnelController do
   end
 
   defp forward_to_target(conn, tunnel_id, target_url, path_segments) do
-    target_uri = build_target_uri(target_url, path_segments, conn.query_string)
+    path = "/" <> Path.join(path_segments)
+
+    ctx = %{
+      method: conn.method,
+      path: path,
+      query_string: if(conn.query_string == "", do: nil, else: conn.query_string),
+      headers: conn.req_headers,
+      body: conn.assigns[:raw_body]
+    }
+
+    ctx =
+      case Transformations.transform(tunnel_id, ctx) do
+        {:ok, transformed} -> transformed
+        {:error, _reason} -> ctx
+      end
+
+    target_uri = build_target_uri(target_url, ctx.path, ctx.query_string)
     url_charlist = target_uri |> URI.to_string() |> String.to_charlist()
 
-    method = parse_method(conn.method)
-    body = conn.assigns[:raw_body] || ""
-    req_headers = filter_headers(conn.req_headers)
+    method = parse_method(ctx.method)
+    body = ctx.body || ""
+    req_headers = filter_headers(ctx.headers)
 
     result =
       if body == "" and method in [:get, :head, :delete, :options] do
@@ -84,16 +101,12 @@ defmodule LoopbackWeb.TunnelController do
     end
   end
 
-  defp build_target_uri(target_url, path_segments, query_string) do
-    path = "/" <> Path.join(path_segments)
+  defp build_target_uri(target_url, path, query_string) when is_binary(path) do
     base = URI.parse(target_url)
 
-    merged =
-      base
-      |> URI.merge(path)
-      |> Map.put(:query, if(query_string == "", do: nil, else: query_string))
-
-    merged
+    base
+    |> URI.merge(path)
+    |> Map.put(:query, if(query_string in [nil, ""], do: nil, else: query_string))
   end
 
   defp parse_method(method) do
