@@ -17,9 +17,9 @@ Self-hosted webhook testing tunnel like ngrok but with replay, inspection, progr
 **Goal:** Phase 1: Phoenix app scaffold with LiveDashboard
 
 **Deliverables:**
-- [ ] Core implementation
-- [ ] Tests
-- [ ] Documentation update
+- [x] Core implementation
+- [x] Tests
+- [x] Documentation update
 
 **Notes:**
 - 
@@ -31,12 +31,15 @@ Self-hosted webhook testing tunnel like ngrok but with replay, inspection, progr
 **Goal:** Phase 2: Tunnel core — public URL → local forward
 
 **Deliverables:**
-- [ ] Core implementation
-- [ ] Tests
-- [ ] Documentation update
+- [x] Core implementation
+- [x] Tests
+- [x] Documentation update
 
 **Notes:**
-- 
+- In-memory tunnel registry (`Loopback.Tunnels.Registry`) supervised under the app tree.
+- Tunnels exposed at `/t/:tunnel_id/*path` and forwarded via `:httpc` to the target URL.
+- Raw request bodies are cached by `LoopbackWeb.CacheBodyReader` so Plug.Parsers does not consume them before forwarding.
+- Added `phoenix_live_reload` dev dependency so `mix phx.server` starts cleanly.
 
 ---
 

@@ -42,15 +42,27 @@
 ### Build
 
 ```bash
-# See PLAN.md for detailed build instructions per phase
 cd loopback
+mix deps.get
+mix compile
 ```
 
 ### Run
 
 ```bash
-# See PLAN.md for run instructions
+mix phx.server
 ```
+
+### Create a tunnel
+
+With the server running, open an IEx shell and create a tunnel:
+
+```elixir
+Loopback.Tunnels.create_tunnel("http://localhost:3000")
+# => {:ok, %Loopback.Tunnels.Tunnel{id: "0001", target_url: "http://localhost:3000", ...}}
+```
+
+Requests to `http://localhost:4000/t/:tunnel_id/*path` are forwarded to the tunnel's `target_url`.
 
 ---
 
