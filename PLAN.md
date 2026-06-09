@@ -62,12 +62,15 @@ Self-hosted webhook testing tunnel like ngrok but with replay, inspection, progr
 **Goal:** Phase 4: Inspection UI (LiveView)
 
 **Deliverables:**
-- [ ] Core implementation
-- [ ] Tests
-- [ ] Documentation update
+- [x] Core implementation
+- [x] Tests
+- [x] Documentation update
 
 **Notes:**
-- 
+- `TunnelListLive` at `/tunnels` displays all tunnels with live request counts via PubSub.
+- `TunnelDetailLive` at `/tunnels/:id` shows captured requests in real-time with method/path/status badges, headers, and formatted JSON bodies.
+- PubSub broadcasts on `tunnel:#{tunnel_id}` when requests are captured; both LiveViews subscribe for live updates.
+- Navigation bar added to root layout for easy access to Tunnels and Dashboard. 
 
 ---
 

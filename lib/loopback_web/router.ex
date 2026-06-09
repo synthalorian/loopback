@@ -18,6 +18,9 @@ defmodule LoopbackWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    live "/tunnels", TunnelListLive
+    live "/tunnels/:id", TunnelDetailLive
   end
 
   scope "/api", LoopbackWeb do

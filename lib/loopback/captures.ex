@@ -10,12 +10,13 @@ defmodule Loopback.Captures do
   Captures a request and its response for a tunnel.
 
   Builds a `Request` struct from the conn and forwarded response, then
-  stores it in ETS.
+  stores it in ETS and broadcasts via PubSub.
   """
   @spec capture_request(Plug.Conn.t(), String.t(), keyword()) :: Request.t()
   def capture_request(conn, tunnel_id, opts \\ []) do
     request = build_request(conn, tunnel_id, opts)
     :ok = ETS.store(request)
+    broadcast_request_captured(tunnel_id, request)
     request
   end
 
@@ -88,5 +89,13 @@ defmodule Loopback.Captures do
   defp generate_id do
     :crypto.strong_rand_bytes(8)
     |> Base.url_encode64(padding: false)
+  end
+
+  defp broadcast_request_captured(tunnel_id, request) do
+    Phoenix.PubSub.broadcast(
+      Loopback.PubSub,
+      "tunnel:#{tunnel_id}",
+      {:request_captured, request}
+    )
   end
 end
