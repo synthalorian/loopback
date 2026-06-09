@@ -7,10 +7,19 @@ defmodule Loopback.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # TODO: add workers
+      LoopbackWeb.Telemetry,
+      Loopback.PubSub,
+      Loopback.Tunnels.Registry,
+      LoopbackWeb.Endpoint
     ]
 
     opts = [strategy: :one_for_one, name: Loopback.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  @impl true
+  def config_change(changed, _new, removed) do
+    LoopbackWeb.Endpoint.config_change(changed, removed)
+    :ok
   end
 end
