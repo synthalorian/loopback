@@ -6,6 +6,7 @@ defmodule LoopbackWeb.TunnelDetailLive do
   use LoopbackWeb, :live_view
 
   alias Loopback.Captures
+  alias Loopback.Replay
   alias Loopback.Tunnels
 
   @impl true
@@ -23,7 +24,10 @@ defmodule LoopbackWeb.TunnelDetailLive do
        tunnel_id: tunnel_id,
        requests: requests,
        selected_request: List.first(requests),
-       page_title: if(tunnel, do: "Tunnel #{tunnel.id}", else: "Tunnel Not Found")
+       page_title: if(tunnel, do: "Tunnel #{tunnel.id}", else: "Tunnel Not Found"),
+       replay_mode: false,
+       replay_result: nil,
+       replay_error: nil
      )}
   end
 
@@ -129,7 +133,21 @@ defmodule LoopbackWeb.TunnelDetailLive do
                 <div class="border-b border-zinc-200 bg-zinc-50 px-4 py-3">
                   <div class="flex items-center justify-between">
                     <h2 class="text-sm font-semibold text-zinc-900">Request Detail</h2>
-                    <span class="text-xs text-zinc-500 font-mono"><%= @selected_request.id %></span>
+                    <div class="flex items-center gap-2">
+                      <button
+                        phx-click="replay_exact"
+                        class="inline-flex items-center rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 transition-colors"
+                      >
+                        Replay
+                      </button>
+                      <button
+                        phx-click="toggle_replay_mode"
+                        class="inline-flex items-center rounded-md bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors"
+                      >
+                        Modify & Replay
+                      </button>
+                      <span class="text-xs text-zinc-500 font-mono"><%= @selected_request.id %></span>
+                    </div>
                   </div>
                 </div>
                 <div class="divide-y divide-zinc-100">
@@ -214,6 +232,105 @@ defmodule LoopbackWeb.TunnelDetailLive do
                   <p class="text-sm text-zinc-500">Select a request to view details.</p>
                 </div>
               <% end %>
+
+              <%= if @replay_mode do %>
+                <div class="border-t border-zinc-200 px-4 py-4">
+                  <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">
+                    Modify & Replay
+                  </h3>
+                  <form phx-submit="replay_modified" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                      <div>
+                        <label class="block text-xs font-medium text-zinc-700">Method</label>
+                        <input
+                          type="text"
+                          name="method"
+                          value={@selected_request && @selected_request.method}
+                          class="mt-1 block w-full rounded-md border-zinc-300 shadow-sm text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label class="block text-xs font-medium text-zinc-700">Path</label>
+                        <input
+                          type="text"
+                          name="path"
+                          value={@selected_request && @selected_request.path}
+                          class="mt-1 block w-full rounded-md border-zinc-300 shadow-sm text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-zinc-700">Query String</label>
+                      <input
+                        type="text"
+                        name="query_string"
+                        value={@selected_request && @selected_request.query_string || ""}
+                        class="mt-1 block w-full rounded-md border-zinc-300 shadow-sm text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-zinc-700">Body</label>
+                      <textarea
+                        name="body"
+                        rows="3"
+                        class="mt-1 block w-full rounded-md border-zinc-300 shadow-sm text-sm font-mono"
+                      ><%= @selected_request && @selected_request.body || "" %></textarea>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="submit"
+                        class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors"
+                      >
+                        Send Replay
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="toggle_replay_mode"
+                        class="inline-flex items-center rounded-md bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              <% end %>
+
+              <%= if @replay_result do %>
+                <div class="border-t border-zinc-200 px-4 py-4">
+                  <h3 class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">
+                    Replay Result
+                  </h3>
+                  <div class="text-sm mb-2">
+                    <span class="text-zinc-500">Status:</span>
+                    <span class={["ml-1 font-medium", status_color(@replay_result.response_status)]}>
+                      <%= @replay_result.response_status %>
+                    </span>
+                  </div>
+                  <%= if @replay_result.response_body do %>
+                    <pre class="overflow-x-auto rounded-lg bg-zinc-900 p-3 text-xs text-zinc-100 font-mono"><%= Phoenix.HTML.raw(format_body(@replay_result.response_body)) %></pre>
+                  <% end %>
+                  <button
+                    phx-click="clear_replay_result"
+                    class="mt-2 inline-flex items-center rounded-md bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-200 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              <% end %>
+
+              <%= if @replay_error do %>
+                <div class="border-t border-zinc-200 px-4 py-4">
+                  <div class="rounded-md bg-rose-50 p-3">
+                    <p class="text-sm text-rose-700"><%= @replay_error %></p>
+                  </div>
+                  <button
+                    phx-click="clear_replay_result"
+                    class="mt-2 inline-flex items-center rounded-md bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-200 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              <% end %>
             </div>
           </div>
         </div>
@@ -225,8 +342,64 @@ defmodule LoopbackWeb.TunnelDetailLive do
   @impl true
   def handle_event("select_request", %{"id" => request_id}, socket) do
     request = Captures.get_request(request_id)
-    {:noreply, assign(socket, selected_request: request)}
+    {:noreply, assign(socket, selected_request: request, replay_result: nil, replay_error: nil)}
   end
+
+  @impl true
+  def handle_event("replay_exact", _params, socket) do
+    case do_replay(socket, %{}) do
+      {:ok, request} ->
+        {:noreply, assign(socket, replay_result: request, replay_error: nil, replay_mode: false)}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, replay_error: error_message(reason), replay_result: nil)}
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_replay_mode", _params, socket) do
+    {:noreply, assign(socket, replay_mode: !socket.assigns.replay_mode, replay_result: nil, replay_error: nil)}
+  end
+
+  @impl true
+  def handle_event("replay_modified", params, socket) do
+    modifications = %{
+      method: Map.get(params, "method"),
+      path: Map.get(params, "path"),
+      query_string: nilify_empty(Map.get(params, "query_string")),
+      body: nilify_empty(Map.get(params, "body"))
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+
+    case do_replay(socket, modifications) do
+      {:ok, request} ->
+        {:noreply, assign(socket, replay_result: request, replay_error: nil, replay_mode: false)}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, replay_error: error_message(reason), replay_result: nil)}
+    end
+  end
+
+  @impl true
+  def handle_event("clear_replay_result", _params, socket) do
+    {:noreply, assign(socket, replay_result: nil, replay_error: nil)}
+  end
+
+  defp do_replay(socket, modifications) do
+    if socket.assigns.selected_request do
+      Replay.replay_request(socket.assigns.selected_request.id, modifications)
+    else
+      {:error, :no_request_selected}
+    end
+  end
+
+  defp nilify_empty(""), do: nil
+  defp nilify_empty(value), do: value
+
+  defp error_message(:not_found), do: "Request not found."
+  defp error_message(:no_request_selected), do: "No request selected."
+  defp error_message(other), do: "Replay failed: #{inspect(other)}"
 
   @impl true
   def handle_info({:request_captured, request}, socket) do

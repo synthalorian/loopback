@@ -25,6 +25,8 @@ defmodule LoopbackWeb.Router do
 
   scope "/api", LoopbackWeb do
     pipe_through :api
+
+    post "/replays/:request_id", ReplayController, :replay
   end
 
   scope "/t", LoopbackWeb do

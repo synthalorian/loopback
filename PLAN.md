@@ -79,12 +79,16 @@ Self-hosted webhook testing tunnel like ngrok but with replay, inspection, progr
 **Goal:** Phase 5: Replay engine (exact + modified replays)
 
 **Deliverables:**
-- [ ] Core implementation
-- [ ] Tests
-- [ ] Documentation update
+- [x] Core implementation
+- [x] Tests
+- [x] Documentation update
 
 **Notes:**
-- 
+- `Loopback.Replay` module handles exact replay via `replay_request/1` and modified replay via `replay_request/2`.
+- Modifications supported: method, path, query_string, headers, body.
+- `LoopbackWeb.ReplayController` exposes `POST /api/replays/:request_id` for both exact and modified replays.
+- `TunnelDetailLive` updated with "Replay" and "Modify & Replay" buttons; replay results displayed inline.
+- Replay results are automatically captured and stored via `Captures.capture_replay_request/1`. 
 
 ---
 
