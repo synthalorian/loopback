@@ -60,6 +60,16 @@ defmodule Loopback.Captures do
     ETS.count()
   end
 
+  @doc """
+  Stores a replay request (already built by the replay engine) and broadcasts it.
+  """
+  @spec capture_replay_request(Request.t()) :: :ok
+  def capture_replay_request(%Request{} = request) do
+    :ok = ETS.store(request)
+    broadcast_request_captured(request.tunnel_id, request)
+    :ok
+  end
+
   defp build_request(conn, tunnel_id, opts) do
     id = generate_id()
 
