@@ -5,6 +5,7 @@ defmodule LoopbackWeb.TunnelController do
 
   use LoopbackWeb, :controller
 
+  alias Loopback.Captures
   alias Loopback.Tunnels
 
   @hop_by_hop_headers [
@@ -26,11 +27,11 @@ defmodule LoopbackWeb.TunnelController do
         |> json(%{error: "tunnel not found"})
 
       tunnel ->
-        forward_to_target(conn, tunnel.target_url, path)
+        forward_to_target(conn, tunnel.id, tunnel.target_url, path)
     end
   end
 
-  defp forward_to_target(conn, target_url, path_segments) do
+  defp forward_to_target(conn, tunnel_id, target_url, path_segments) do
     target_uri = build_target_uri(target_url, path_segments, conn.query_string)
     url_charlist = target_uri |> URI.to_string() |> String.to_charlist()
 
@@ -56,6 +57,14 @@ defmodule LoopbackWeb.TunnelController do
       {:ok, {{_http_version, status, _reason}, resp_headers, resp_body}} ->
         resp_headers = normalize_headers(resp_headers)
 
+        _request =
+          Captures.capture_request(conn, tunnel_id,
+            response_status: status,
+            response_headers: resp_headers,
+            response_body: resp_body,
+            path: "/" <> Path.join(path_segments)
+          )
+
         conn
         |> put_status(status)
         |> put_resp_headers(resp_headers)
@@ -63,6 +72,12 @@ defmodule LoopbackWeb.TunnelController do
         |> halt()
 
       {:error, reason} ->
+        _request =
+          Captures.capture_request(conn, tunnel_id,
+            response_status: 502,
+            path: "/" <> Path.join(path_segments)
+          )
+
         conn
         |> put_status(:bad_gateway)
         |> json(%{error: "failed to forward request", reason: inspect(reason)})

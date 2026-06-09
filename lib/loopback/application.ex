@@ -10,6 +10,7 @@ defmodule Loopback.Application do
       LoopbackWeb.Telemetry,
       Loopback.PubSub,
       Loopback.Tunnels.Registry,
+      Loopback.Captures.ETS,
       LoopbackWeb.Endpoint
     ]
 
