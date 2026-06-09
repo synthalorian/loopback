@@ -5,10 +5,12 @@ defmodule LoopbackWeb.TunnelControllerTest do
   alias Loopback.Captures.ETS
   alias Loopback.Tunnels
   alias Loopback.Tunnels.Registry
+  alias Loopback.Transformations.Registry, as: TransformRegistry
   alias Loopback.TestTargetServer
 
   setup do
     Registry.clear()
+    TransformRegistry.clear()
     ETS.clear()
     {:ok, pid} = TestTargetServer.start()
     {:ok, target_url: TestTargetServer.url(pid), server: pid}

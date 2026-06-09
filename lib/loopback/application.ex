@@ -11,6 +11,7 @@ defmodule Loopback.Application do
       Loopback.PubSub,
       Loopback.Tunnels.Registry,
       Loopback.Captures.ETS,
+      Loopback.Transformations.Registry,
       LoopbackWeb.Endpoint
     ]
 
