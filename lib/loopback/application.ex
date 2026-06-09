@@ -12,6 +12,7 @@ defmodule Loopback.Application do
       Loopback.Tunnels.Registry,
       Loopback.Captures.ETS,
       Loopback.Transformations.Registry,
+      Loopback.Chaos.Mode,
       LoopbackWeb.Endpoint
     ]
 
