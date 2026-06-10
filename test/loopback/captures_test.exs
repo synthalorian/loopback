@@ -120,7 +120,7 @@ defmodule Loopback.CapturesTest do
       conn = build_conn("GET", "/")
 
       # Seed 5 requests
-      requests = for _ <- 1..5, do: Captures.capture_request(conn, "tunnel-1")
+      for _ <- 1..5, do: Captures.capture_request(conn, "tunnel-1")
 
       # Verify all 5 are stored
       assert Captures.count() == 5
@@ -135,7 +135,7 @@ defmodule Loopback.CapturesTest do
       # by adding many requests.
       ETS.clear()
 
-      for i <- 1..10_005 do
+      for _i <- 1..10_005 do
         Captures.capture_request(conn, "tunnel-1")
       end
 

@@ -251,7 +251,7 @@ defmodule LoopbackWeb.WebhookVerificationControllerTest do
     end
   end
 
-  defp build_captured_request(opts \\ []) do
+  defp build_captured_request(opts) do
     body = Keyword.get(opts, :body, "")
     headers = Keyword.get(opts, :headers, [{"accept", "application/json"}])
 

@@ -34,7 +34,7 @@ defmodule Loopback.Captures.ETS do
   """
   @spec list_by_tunnel(String.t()) :: [Request.t()]
   def list_by_tunnel(tunnel_id) when is_binary(tunnel_id) do
-    match = [{{{:"_", tunnel_id}, :"_", :"$1"}, [], [:"$1"]}]
+    match = [{{{:_, tunnel_id}, :_, :"$1"}, [], [:"$1"]}]
 
     @table
     |> :ets.select(match)
@@ -47,7 +47,7 @@ defmodule Loopback.Captures.ETS do
   """
   @spec get(String.t()) :: Request.t() | nil
   def get(request_id) when is_binary(request_id) do
-    match = [{{{request_id, :"_"}, :"_", :"$1"}, [], [:"$1"]}]
+    match = [{{{request_id, :_}, :_, :"$1"}, [], [:"$1"]}]
 
     case :ets.select(@table, match, 1) do
       {[request], _continuation} -> request
@@ -98,7 +98,7 @@ defmodule Loopback.Captures.ETS do
 
   @impl true
   def handle_call({:delete_by_tunnel, tunnel_id}, _from, state) do
-    match = [{{{:"_", tunnel_id}, :"_", :"_"}, [], [true]}]
+    match = [{{{:_, tunnel_id}, :_, :_}, [], [true]}]
     :ets.select_delete(state.table, match)
     {:reply, :ok, state}
   end
@@ -115,7 +115,7 @@ defmodule Loopback.Captures.ETS do
     if size > max_entries do
       to_delete = size - max_entries
 
-      results = :ets.match(table, {:"$1", :"_", :"_"}, to_delete)
+      results = :ets.match(table, {:"$1", :_, :_}, to_delete)
 
       case results do
         {keys, _continuation} ->

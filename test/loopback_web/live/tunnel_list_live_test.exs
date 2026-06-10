@@ -61,7 +61,7 @@ defmodule LoopbackWeb.TunnelListLiveTest do
     assert html =~ "href=\"/tunnels/#{tunnel.id}\""
   end
 
-  defp build_test_conn(method, path, body \\ nil) do
+  defp build_test_conn(method, path, body) do
     %Plug.Conn{
       method: method,
       path_info: String.split(path, "/", trim: true),
