@@ -4,3 +4,4 @@ deps/
 erl_crash.dump
 *.beam
 config/*.secret.exs
+.omo/
